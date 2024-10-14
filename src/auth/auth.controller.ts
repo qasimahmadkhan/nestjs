@@ -12,10 +12,8 @@ export class AuthController {
   @Post('login')
   async login(@Body() body) {
     const {email, password} = body;
-    console.log('thebody', email,password);
     
     const user = await this.authService.validateUser(email, password);
-    console.log('theuser', user);
     
     if(!user){
       throw new UnauthorizedException('Invalid Credentials');
@@ -25,7 +23,6 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto){
-    console.log("🚀 ~ AuthController ~ register ~ createUserDto:", createUserDto)
     return this.authService.register(createUserDto)
   }
 

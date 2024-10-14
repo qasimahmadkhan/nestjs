@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -20,31 +20,55 @@ export class UserService {
 
   async create(CreateUserDto: CreateUserDto) : Promise<User>{
     try{
-      const user = this.userRepository.create(CreateUserDto);
-      console.log('useruser', user);
-      
-    return this.userRepository.save(user)
+      const user = this.userRepository.create(CreateUserDto); 
+      return this.userRepository.save(user)
     }
     catch(error){
-      console.log('theerror', error);
-      
       throw error;
     }
   }
 
-  findAll() {
-    return `This action returns all user`;
+  async getAllUsers(limit: number, page:number){
+    const skip = (page - 1) * limit;
+    const [users, total] = await this.userRepository.findAndCount({
+      skip,
+      take:limit,
+    }) 
+    return {
+      data: users,
+      total,
+      page,
+      pageSize: limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async getUserById(id:number){
+    const user = await this.userRepository.findOne({where: {id}});
+    if(!user){
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
+  async updateUser(id:number, updateUserDto: UpdateUserDto){
+    const user = await this.userRepository.preload({
+      id:+id,
+      ...updateUserDto
+    })
+    
+    if(!user){
+      throw new NotFoundException('User does not exist')
+    }
+    return this.userRepository.save(user);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async deleteUser(id:number){
+    const result = await this.userRepository.delete(id);
+    if(result.affected == 0){
+      throw new NotFoundException('No user found with the specific ID')
+    }
+    return {message:'User deleted successfully'};
   }
+
 }
