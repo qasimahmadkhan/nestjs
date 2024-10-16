@@ -9,6 +9,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './auth/stratergies/jwt.strategy';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     UserModule,
     AuthModule,
     PassportModule,
+    MailModule,
     JwtModule.register({
       secret: 'SECRET_KEY',
       signOptions: { expiresIn: '1h' }

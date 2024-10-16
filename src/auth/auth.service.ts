@@ -1,16 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { UserService } from 'src/user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { Repository } from 'typeorm';
+import { User } from 'src/user/entities/user.entity';
+import { MailService } from 'src/mail/mailservice';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateUserDto } from 'src/user/dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
 
   constructor(
+    @InjectRepository(User)
+    private readonly userRepository : Repository<User>,
     private userService: UserService,
-    private jwtService: JwtService, 
+    private jwtService: JwtService,
+    private readonly mailService: MailService,
+
   ) {}
 
   async validateUser(email: string, password: string): Promise<any>{
@@ -36,20 +49,54 @@ export class AuthService {
     return this.login(user);
   }
 
-  create(createAuthDto: CreateAuthDto) {
-    return 'This action adds a new auth';
-  }
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+    const user = await this.userRepository.findOne({ where: { email } });
 
-  findAll() {
-    return `This action returns all auth`;
-  }
+    if (!user) {
+        throw new NotFoundException('User with this email does not exist');
+    }
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
-  }
+    const payload = { sub: user.id }
+    const resetToken = this.jwtService.sign(payload, {
+        expiresIn: '1h',
+    });
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
+    user.resetPasswordToken = await bcrypt.hash(resetToken, 10);
+    user.resetPasswordExpires = new Date(Date.now() + 3600000);
+
+    await this.userRepository.save(user);
+
+    await this.mailService.sendResetPasswordEmail(email, resetToken);
+
+    return { message: 'Password reset email has been sent.' };
+}
+
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto){
+    const {token, newPassword} = resetPasswordDto;
+
+    try{
+      
+      const payload = this.jwtService.verify(token);
+
+      const user = await this.userService.getUserById(payload.sub);
+      if(!user){
+        throw new NotFoundException("User with the id not found")
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      user.password = hashedPassword;
+      const updateUserDto: UpdateUserDto = { password: hashedPassword };
+      await this.userService.updateUser(user.id, updateUserDto);
+      return { message: 'Password reset' };
+    }
+    catch(e){
+      console.log('therr', e);
+      
+      throw new BadRequestException('Invalid or expired token');
+    }
+
   }
 
   remove(id: number) {
